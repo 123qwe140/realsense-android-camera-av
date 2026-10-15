@@ -1,0 +1,398 @@
+--- a/CMake/external_json.cmake
++++ b/CMake/external_json.cmake
+@@ -6,6 +6,15 @@
+ # We use a function to enforce a scoped variables creation only for the build
+ # (i.e turn off BUILD_SHARED_LIBS which is used on LRS build as well)
+ function(get_nlohmann_json)
++
++    # Handoff: use bundled upstream v3.12.0 sources without a Git download.
++    set(_bundled_json "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../third-party/json")
++    if(EXISTS "${_bundled_json}/CMakeLists.txt")
++        # rsutils retains the upstream include path under CMAKE_BINARY_DIR.
++        file(COPY "${_bundled_json}/include" DESTINATION "${CMAKE_BINARY_DIR}/third-party/json")
++        add_subdirectory("${_bundled_json}" "${CMAKE_BINARY_DIR}/third-party/json/build")
++        return()
++    endif()
+ 
+     message( STATUS #CHECK_START
+         "Fetching nlohmann/json..." )
+--- a/wrappers/android/.gitignore
++++ b/wrappers/android/.gitignore
+@@ -1,20 +1,22 @@
+-*.jar
+-*.aar
+-*.apk
+-*.iml
+-*.user
+-
+-!gradle-wrapper.jar
+-
+-.externalNativ
+-.settings
+-.gradle
+-
+-output_build
+-local.properties
+-
+-.idea
+-/build
+-/captures
+-
+-gradle+*.jar
++*.aar
++*.apk
++*.iml
++*.user
++
++!gradle-wrapper.jar
++
++.externalNativ
++.settings
++.gradle
++
++output_build
++local.properties
++
++.idea
++/build
++/captures
++
++gradle
++.cxx/
++build-*/
+--- a/wrappers/android/build.gradle
++++ b/wrappers/android/build.gradle
+@@ -10,7 +10,6 @@
+ 
+     id 'com.android.application' version '8.9.1' apply false
+     id 'com.android.library' version '8.9.1' apply false
+-    id 'org.jetbrains.kotlin.android' version '2.0.21' apply false
+ }
+ 
+ ext {
+@@ -26,3 +25,4 @@
+     androidextjunitVersion = '1.1.5'
+     espressoCoreVersion = '3.5.1'
+ }
++
+--- a/wrappers/android/librealsense/build.gradle
++++ b/wrappers/android/librealsense/build.gradle
+@@ -15,8 +15,8 @@
+ 
+         externalNativeBuild {
+             cmake {
+-                abiFilters 'arm64-v8a', 'x86_64'
+-                arguments "-DFORCE_RSUSB_BACKEND=TRUE"
++                abiFilters 'arm64-v8a'
++                arguments "-DFORCE_RSUSB_BACKEND=TRUE", "-DBUILD_ROSBAG2=OFF", "-DCHECK_FOR_UPDATES=OFF", "-DBUILD_WITH_DDS=OFF"
+             }
+         }
+     }
+@@ -30,6 +30,7 @@
+     externalNativeBuild {
+         cmake {
+             path "CMakeLists.txt"
++            version '3.22.1'
+         }
+     }
+ }
+@@ -40,3 +41,5 @@
+     androidTestImplementation "androidx.test.ext:junit:$androidextjunitVersion"
+     androidTestImplementation "androidx.test.espresso:espresso-core:$espressoCoreVersion"
+ }
++
++
+--- a/wrappers/android/librealsense/src/main/java/com/intel/realsense/librealsense/Option.java
++++ b/wrappers/android/librealsense/src/main/java/com/intel/realsense/librealsense/Option.java
+@@ -98,7 +98,7 @@
+     OPTION_EMITTER_FREQUENCY(93),
+     OPTION_DEPTH_AUTO_EXPOSURE_MODE(94),
+     OPTION_SAFETY_PRESET_ACTIVE_INDEX(95),
+-    OPTION_SAFETY_MODE(96);
++    OPTION_SAFETY_MODE(96),
+     OPTION_RGB_TNR_ENABLED(97);
+ 
+ 
+@@ -107,3 +107,4 @@
+     private Option(int value) { mValue = value; }
+     public int value() { return mValue; }
+ }
++
+--- a/wrappers/android/tools/camera/build.gradle
++++ b/wrappers/android/tools/camera/build.gradle
+@@ -13,8 +13,8 @@
+         applicationId "com.intel.realsense.camera"
+         minSdk defaultMinSdkVersion
+         targetSdk defaultTargetSdkVersion
+-        versionCode 6
+-        versionName "0.0.6"
++        versionCode 7
++        versionName "0.0.7-rgb"
+         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+     }
+     buildTypes {
+--- a/wrappers/android/tools/camera/src/main/java/com/intel/realsense/camera/PreviewActivity.java
++++ b/wrappers/android/tools/camera/src/main/java/com/intel/realsense/camera/PreviewActivity.java
+@@ -144,23 +144,7 @@
+                 startActivity(intent);
+             }
+         });
+-        m3dButton.setOnClickListener(new View.OnClickListener() {
+-            @Override
+-            public void onClick(View view) {
+-                mGLSurfaceView.setVisibility(View.GONE);
+-                mGLSurfaceView.clear();
+-                clearLables();
+-                mShow3D = !mShow3D;
+-                mGLSurfaceView.showPointcloud(mShow3D);
+-
+-                m3dButton.setTextColor(mShow3D ? Color.YELLOW : Color.WHITE);
+-                mGLSurfaceView.setVisibility(View.VISIBLE);
+-                SharedPreferences sharedPref = getSharedPreferences(getString(R.string.app_settings), Context.MODE_PRIVATE);
+-                SharedPreferences.Editor editor = sharedPref.edit();
+-                editor.putBoolean(getString(R.string.show_3d), mShow3D);
+-                editor.commit();
+-            }
+-        });
++        m3dButton.setVisibility(View.GONE);
+         mControlsButton.setOnClickListener(new View.OnClickListener() {
+             @Override
+             public void onClick(View view) {
+@@ -176,9 +160,10 @@
+                 updateStats();
+             }
+         });
+-        SharedPreferences sharedPref = getSharedPreferences(getString(R.string.app_settings), Context.MODE_PRIVATE);
+-        mShow3D = sharedPref.getBoolean(getString(R.string.show_3d), false);
+-        m3dButton.setTextColor(mShow3D ? Color.YELLOW : Color.WHITE);
++        mShow3D = false;
++        mGLSurfaceView.showPointcloud(false);
++        View statsLogging = findViewById(R.id.statistics_log_checkbox);
++        if (statsLogging != null) statsLogging.setVisibility(View.GONE);
+     }
+ 
+     @Override
+@@ -260,8 +245,8 @@
+ 
+             @Override
+             public void onFrameset(final FrameSet frameSet) {
+-                mStreamingStats.onFrameset(frameSet);
+                 if(statsToggle){
++                    mStreamingStats.onFrameset(frameSet);
+                     clearLables();
+                     runOnUiThread(new Runnable() {
+                         @Override
+@@ -271,10 +256,7 @@
+                     });
+                 }
+                 else{
+-                    mGLSurfaceView.showPointcloud(mShow3D);
+                     mGLSurfaceView.upload(frameSet);
+-                    Map<Integer, Pair<String, Rect>> rects = mGLSurfaceView.getRectangles();
+-                    printLables(rects);
+                 }
+             }
+         });
+--- a/wrappers/android/tools/camera/src/main/java/com/intel/realsense/camera/RecordingActivity.java
++++ b/wrappers/android/tools/camera/src/main/java/com/intel/realsense/camera/RecordingActivity.java
+@@ -160,6 +160,12 @@
+             mGLSurfaceView.clear();
+     }
+ 
++    @Override
++    protected void onDestroy() {
++        if (mGLSurfaceView != null) mGLSurfaceView.close();
++        super.onDestroy();
++    }
++
+     private String getFilePath(){
+         Log.d(TAG, "getFilePath: entry");
+         File rsFolder = new File(getExternalFilesDir(null).getAbsolutePath() +
+--- a/wrappers/android/tools/camera/src/main/res/layout-land/activity_preview.xml
++++ b/wrappers/android/tools/camera/src/main/res/layout-land/activity_preview.xml
+@@ -7,7 +7,7 @@
+     android:background="@color/black"
+     android:orientation="horizontal">
+ 
+-    <com.intel.realsense.librealsense.GLRsSurfaceView
++    <com.intel.realsense.camera.RgbPreviewSurfaceView
+         android:layout_width="match_parent"
+         android:layout_height="match_parent"
+         android:id="@+id/glSurfaceView"/>
+@@ -153,4 +153,4 @@
+         android:checked="true"
+         android:textColor="#ffffff" />
+ 
+-</RelativeLayout>+</RelativeLayout>
+--- a/wrappers/android/tools/camera/src/main/res/layout-land/activity_recording.xml
++++ b/wrappers/android/tools/camera/src/main/res/layout-land/activity_recording.xml
+@@ -7,7 +7,7 @@
+     android:background="@color/black"
+     android:orientation="horizontal">
+ 
+-    <com.intel.realsense.librealsense.GLRsSurfaceView
++    <com.intel.realsense.camera.RgbPreviewSurfaceView
+         android:layout_width="match_parent"
+         android:layout_height="match_parent"
+         android:id="@+id/recordingGlSurfaceView"/>
+@@ -31,4 +31,4 @@
+         android:clickable="true"
+         android:backgroundTint="#000000"
+         app:srcCompat="@android:drawable/ic_media_pause" />
+-</RelativeLayout>+</RelativeLayout>
+--- a/wrappers/android/tools/camera/src/main/res/layout/activity_preview.xml
++++ b/wrappers/android/tools/camera/src/main/res/layout/activity_preview.xml
+@@ -7,7 +7,7 @@
+     android:background="@color/black"
+     android:orientation="horizontal">
+ 
+-    <com.intel.realsense.librealsense.GLRsSurfaceView
++    <com.intel.realsense.camera.RgbPreviewSurfaceView
+         android:layout_width="match_parent"
+         android:layout_height="match_parent"
+         android:id="@+id/glSurfaceView"/>
+@@ -135,4 +135,4 @@
+         android:backgroundTint="#ffffff"
+         app:srcCompat="@android:drawable/ic_notification_overlay" />
+ 
+-</RelativeLayout>+</RelativeLayout>
+--- a/wrappers/android/tools/camera/src/main/res/layout/activity_recording.xml
++++ b/wrappers/android/tools/camera/src/main/res/layout/activity_recording.xml
+@@ -7,7 +7,7 @@
+     android:background="@color/black"
+     android:orientation="horizontal">
+ 
+-    <com.intel.realsense.librealsense.GLRsSurfaceView
++    <com.intel.realsense.camera.RgbPreviewSurfaceView
+         android:layout_width="match_parent"
+         android:layout_height="match_parent"
+         android:id="@+id/recordingGlSurfaceView"/>
+@@ -31,4 +31,4 @@
+         android:clickable="true"
+         android:backgroundTint="#000000"
+         app:srcCompat="@android:drawable/ic_media_pause" />
+-</RelativeLayout>+</RelativeLayout>
+--- /dev/null
++++ b/wrappers/android/tools/camera/src/main/java/com/intel/realsense/camera/RgbPreviewSurfaceView.java
+@@ -0,0 +1,110 @@
++package com.intel.realsense.camera;
++
++import android.content.Context;
++import android.util.AttributeSet;
++import android.util.Log;
++
++import com.intel.realsense.librealsense.Frame;
++import com.intel.realsense.librealsense.FrameSet;
++import com.intel.realsense.librealsense.GLRsSurfaceView;
++import com.intel.realsense.librealsense.StreamFormat;
++import com.intel.realsense.librealsense.StreamProfile;
++import com.intel.realsense.librealsense.StreamType;
++import com.intel.realsense.librealsense.YuyDecoder;
++
++/** Display only color; retain at most one waiting frame and render on new frames. */
++public class RgbPreviewSurfaceView extends GLRsSurfaceView {
++    private final Object mFrameLock = new Object();
++    private Frame mPendingFrame;
++    private boolean mUploadQueued;
++    private boolean mClosed;
++    private YuyDecoder mDecoder;
++    private boolean mLoggedFirstFrame;
++
++    public RgbPreviewSurfaceView(Context context) {
++        super(context);
++        setRenderMode(RENDERMODE_WHEN_DIRTY);
++    }
++
++    public RgbPreviewSurfaceView(Context context, AttributeSet attrs) {
++        super(context, attrs);
++        setRenderMode(RENDERMODE_WHEN_DIRTY);
++    }
++
++    @Override
++    public void upload(FrameSet frames) {
++        try (Frame color = frames.first(StreamType.COLOR)) {
++            if (color == null) return;
++            synchronized (mFrameLock) {
++                if (mClosed) return;
++                if (mPendingFrame != null) mPendingFrame.close();
++                mPendingFrame = color.clone();
++                if (!mUploadQueued) {
++                    mUploadQueued = true;
++                    queueEvent(this::uploadPendingFrame);
++                }
++            }
++        }
++    }
++
++    private void uploadPendingFrame() {
++        Frame color;
++        synchronized (mFrameLock) {
++            color = mPendingFrame;
++            mPendingFrame = null;
++            mUploadQueued = false;
++        }
++        if (color == null) return;
++        try (Frame retained = color; StreamProfile profile = color.getProfile()) {
++            if (profile.getFormat() == StreamFormat.YUYV) {
++                if (mDecoder == null) mDecoder = new YuyDecoder();
++                Frame decoded = mDecoder.process(color);
++                try {
++                    super.upload(decoded);
++                } finally {
++                    // The filter may return its input when no output is available.
++                    if (decoded != color) decoded.close();
++                }
++            } else {
++                super.upload(color);
++            }
++            requestRender();
++            if (!mLoggedFirstFrame) {
++                Log.i("librs RGB preview", "Color-only preview: " + profile.getFormat()
++                        + "; on-demand rendering; latest-frame queue");
++                mLoggedFirstFrame = true;
++            }
++        } catch (RuntimeException error) {
++            Log.e("librs RGB preview", "Cannot display color frame", error);
++        }
++    }
++
++    @Override
++    public void clear() {
++        synchronized (mFrameLock) {
++            if (mPendingFrame != null) mPendingFrame.close();
++            mPendingFrame = null;
++        }
++        queueEvent(() -> {
++            RgbPreviewSurfaceView.super.clear();
++            requestRender();
++        });
++    }
++
++    @Override
++    public void close() {
++        synchronized (mFrameLock) {
++            if (mClosed) return;
++            mClosed = true;
++            if (mPendingFrame != null) mPendingFrame.close();
++            mPendingFrame = null;
++        }
++        queueEvent(() -> {
++            if (mDecoder != null) {
++                mDecoder.close();
++                mDecoder = null;
++            }
++            RgbPreviewSurfaceView.super.close();
++        });
++    }
++}
+--- /dev/null
++++ b/wrappers/android/gradle/wrapper/gradle-wrapper.properties
+@@ -0,0 +1,8 @@
++distributionBase=GRADLE_USER_HOME
++distributionPath=wrapper/dists
++distributionSha256Sum=f397b287023acdba1e9f6fc5ea72d22dd63669d59ed4a289a29b1a76eee151c6
++distributionUrl=https\://downloads.gradle.org/distributions/gradle-8.11.1-bin.zip
++networkTimeout=10000
++validateDistributionUrl=false
++zipStoreBase=GRADLE_USER_HOME
++zipStorePath=wrapper/dists

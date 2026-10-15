@@ -1,0 +1,53 @@
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.MaterialComponents.NoActionBar">
+        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+        <item name="colorSurface">#1B2029</item>
+        <item name="colorOnSurface">#F6F8FB</item>
+        <item name="colorOnPrimary">#101319</item>
+        <item name="colorSecondary">#6CE0BE</item>
+        <item name="android:colorBackground">#101319</item>
+        <item name="android:windowBackground">#101319</item>
+        <item name="android:textColorPrimary">#F6F8FB</item>
+        <item name="android:textColorSecondary">#9FA9B8</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#101319</item>
+        <item name="android:navigationBarColor">#101319</item>
+        <item name="bottomSheetDialogTheme">@style/AvBottomSheet</item>
+    </style>
+
+    <style name="AvBottomSheet" parent="ThemeOverlay.MaterialComponents.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/AvBottomSheetWidget</item>
+        <item name="android:textColorPrimary">#F6F8FB</item>
+        <item name="colorSurface">#1B2029</item>
+    </style>
+    <style name="AvBottomSheetWidget" parent="Widget.MaterialComponents.BottomSheet.Modal">
+        <item name="android:background">@android:color/transparent</item>
+    </style>
+
+    <style name="FullscreenTheme" parent="AppTheme">
+        <item name="android:actionBarStyle">@style/FullscreenActionBarStyle</item>
+        <item name="android:windowActionBarOverlay">true</item>
+        <item name="android:windowBackground">@null</item>
+        <item name="metaButtonBarStyle">?android:attr/buttonBarStyle</item>
+        <item name="metaButtonBarButtonStyle">?android:attr/buttonBarButtonStyle</item>
+    </style>
+
+    <style name="FullscreenActionBarStyle" parent="Widget.AppCompat.ActionBar">
+        <item name="android:background">@color/black_overlay</item>
+    </style>
+
+    <style name="AppTheme.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="colorPrimaryDark">@color/black</item>
+    </style>
+
+    <style name="AppTheme.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar" />
+
+    <style name="AppTheme.PopupOverlay" parent="ThemeOverlay.AppCompat.Light" />
+</resources>

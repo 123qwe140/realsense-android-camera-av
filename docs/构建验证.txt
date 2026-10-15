@@ -1,0 +1,10 @@
+交接包独立构建验证
+日期：2026-10-14
+从官方源码归档重新创建源码目录，再叠加本地改动；未拷贝任何旧原生库、构建中间文件或手机数据。
+通过包内 scripts/build.ps1 和 Gradle Wrapper 构建 :tools:camera:assembleDebug。
+结果：BUILD SUCCESSFUL in 2m 38s。
+依赖：JDK 17；Gradle 8.11.1；AGP 8.9.1；API/Build-Tools 35；NDK 28.0.13004108；CMake 3.22.1。
+nlohmann/json 使用包内 3.12.0 源码，无需 Git 下载。
+构建使用现有 Android SDK 和通用 Gradle 依赖缓存；源码与原生编译产物位于新的独立目录。
+脚本语法检查通过；APK 签名检查与包版本检查通过。
+本次交接没有安装到 iQOO，iQOO 实时图像与录制仍需接手同学实测。

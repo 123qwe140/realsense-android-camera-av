@@ -1,0 +1,70 @@
+开发交接：RGB 显示与深度录制
+
+工程入口
+
+Android 工程：source/librealsense-2.58.1/wrappers/android
+应用模块：tools/camera
+Java/JNI SDK 模块：librealsense
+原生 SDK：完整源码树的 src/、include/、third-party/、CMake/。
+包名：com.intel.realsense.camera
+versionName：0.0.7-rgb；versionCode：7
+minSdk：24；compileSdk/targetSdk：35；目前仅构建 arm64-v8a。
+
+当前数据流程
+
+Streamer 按 SettingsActivity 保存的流配置启动 Pipeline。
+每个 FrameSet 保留原始的颜色和深度数据；录制通过 Config.enableRecordToFile 写传统 .bag。
+PreviewActivity 与 RecordingActivity 使用 RgbPreviewSurfaceView，只从 FrameSet 提取 COLOR 帧送往显示。
+RGB8/RGBA8 走原渲染器的单帧上传；YUYV 按需使用 YuyDecoder。
+显示不对深度进行着色，也不计算点云；GLSurfaceView 使用 RENDERMODE_WHEN_DIRTY。
+最多保留一个等待显示的颜色帧，使用 clone/close 保持原生帧引用生命周期；在 GL 线程上传和清理资源。
+录制发生在 Pipeline 内，不取决于预览是否丢弃一个等待显示的颜色帧。
+没有降低采集分辨率或采集帧率。采集流是否包含深度，仍由设置决定。
+PlaybackActivity 保留官方回放界面，包括多流与 3D 回放；目前 RGB 改造仅覆盖实时预览与录制界面。
+
+重点修改文件（相对于 Android 工程目录）
+
+tools/camera/src/main/java/com/intel/realsense/camera/RgbPreviewSurfaceView.java
+  新增颜色单帧显示、等待帧替换、按需重绘、GL 线程资源管理。
+tools/camera/src/main/java/com/intel/realsense/camera/PreviewActivity.java
+  实时预览隐藏 3D；默认不计算 StreamingStats、不做逐帧标签布局；主动打开 Statistics 时才统计。
+tools/camera/src/main/java/com/intel/realsense/camera/RecordingActivity.java
+  录制界面使用同一颜色预览；补上 onDestroy 中的显示资源释放。
+tools/camera/src/main/res/layout*/activity_preview.xml 与 activity_recording.xml
+  将显示控件替换为 RgbPreviewSurfaceView，横竖屏都已替换。
+librealsense/src/main/java/com/intel/realsense/librealsense/Option.java
+  修正官方 v2.58.1 中 OPTION_SAFETY_MODE(96) 与下一枚举常量之间误写的分号。
+librealsense/build.gradle
+  仅 arm64-v8a，固定 CMake 3.22.1，FORCE_RSUSB_BACKEND=TRUE。
+  BUILD_ROSBAG2=OFF（使用传统 .bag），CHECK_FOR_UPDATES=OFF，BUILD_WITH_DDS=OFF。
+build.gradle
+  删除未使用的 Kotlin Gradle 插件声明，减少构建依赖。
+tools/camera/build.gradle
+  应用版本更新为 0.0.7-rgb / 7。
+
+本次交接额外补齐
+
+gradlew、gradlew.bat、gradle/wrapper/gradle-wrapper.jar 与 .properties。
+固定 Gradle 8.11.1，分发文件配置了官方 SHA-256 校验。
+Android .gitignore 不再忽略整个 gradle 目录，以便后续将 Wrapper 纳入 Git。
+脚本和说明使用相对项目位置与使用者提供的 SDK/JDK 路径。
+third-party/json 附带官方 nlohmann/json 3.12.0 的头文件、CMake 配置和 MIT 许可；CMake/external_json.cmake 优先使用这份本地依赖，减少首次构建的网络问题。
+交接包未附 SDK 安装目录、JDK 安装目录、构建缓存、手机数据、调试证书私钥或固定代理配置。
+
+录制文件位置
+
+Android 应用的 getExternalFilesDir(null)/realsense/video/*.bag。
+原包名的常见对应路径为 /sdcard/Android/data/com.intel.realsense.camera/files/realsense/video/。
+部分系统的文件管理器限制访问 Android/data，可通过电脑 ADB 导出：
+  adb -s 目标设备序列号 pull /sdcard/Android/data/com.intel.realsense.camera/files/realsense/video ./recordings
+更改包名后路径中的包名也要更改。
+为验证“仍录深度”，可将文件导出到电脑，用 RealSense Viewer 查看录制流。
+
+继续优化的重点
+
+先在 iQOO 真机验证 RGB8 与 YUYV、横竖屏、暂停恢复与多次录制后的内存占用。
+当前 Streamer.waitForFrames 和回调使用主线程 Handler；若出现 UI 卡顿，可考虑独立采集线程，注意 UI 更新与停止/关闭之间的同步。
+GLVideoFrame 仍会复制 RGB 像素并上传纹理；可以进一步减少像素复制与重复纹理分配，但应先取得真机性能数据。
+RGB 预览依赖 COLOR 流：如果只开启 DEPTH，将没有 RGB 画面。
+首次请求或拒绝相机/USB 权限、相机掉线和低供电状态都应在接手设备上验证。
+Android SDK 的官方工具不覆盖本项目所有手机系统行为；不要将三星实测等同于 iQOO 已适配。

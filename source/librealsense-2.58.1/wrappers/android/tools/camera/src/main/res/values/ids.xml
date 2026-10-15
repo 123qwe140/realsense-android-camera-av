@@ -1,0 +1,26 @@
+<resources>
+    <item name="uiBack" type="id" />
+    <item name="homeStatus" type="id" />
+    <item name="homeTitle" type="id" />
+    <item name="homeDescription" type="id" />
+    <item name="homeAction" type="id" />
+    <item name="homeHelp" type="id" />
+    <item name="homeLibrary" type="id" />
+    <item name="homeVersion" type="id" />
+    <item name="cameraStatus" type="id" />
+    <item name="cameraDetail" type="id" />
+    <item name="depthStatus" type="id" />
+    <item name="micStatus" type="id" />
+    <item name="previewHint" type="id" />
+    <item name="recordButton" type="id" />
+    <item name="libraryButton" type="id" />
+    <item name="settingsButton" type="id" />
+    <item name="recordingTimer" type="id" />
+    <item name="recordingSize" type="id" />
+    <item name="micMeter" type="id" />
+    <item name="shutterLabel" type="id" />
+    <item name="libraryCount" type="id" />
+    <item name="libraryList" type="id" />
+    <item name="libraryEmpty" type="id" />
+    <item name="emptyCapture" type="id" />
+</resources>

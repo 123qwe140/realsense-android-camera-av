@@ -1,0 +1,27 @@
+{
+  "title": "RealSense Android Capture UI and RGB + phone audio",
+  "date": "2026-10-15",
+  "sdk_version": "2.58.1",
+  "app_version": "0.0.9-capture",
+  "version_code": 9,
+  "application_id": "com.intel.realsense.camera.av",
+  "abis": [
+    "arm64-v8a"
+  ],
+  "min_sdk": 24,
+  "source_origin": "https://github.com/realsenseai/librealsense/tree/v2.58.1",
+  "bundled_dependency": {
+    "nlohmann/json": "3.12.0"
+  },
+  "handoff_build_verified": true,
+  "iqoo_hardware_tested": false,
+  "apk_sha256": "5f250d6de55b78a16e1209f15e320eb47a429a03191965b71581dbe78505ca30",
+  "development_apk": "outputs/RS-Camera-0.0.9-capture-arm64.apk",
+  "original_apk": "apk/RS-Camera-0.0.7-rgb-arm64.apk",
+  "native_library_rebuilt": false,
+  "native_library_origin": "Bundled 0.0.7 APK; native binary verified identical",
+  "instrumentation_tests_executed": false,
+  "target_hardware": "RealSense D435i; iQOO Z7x; Android 13; phone microphone",
+  "local_ui_and_file_tests_passed": 12,
+  "ui_preview_directory": "outputs/ui-preview"
+}

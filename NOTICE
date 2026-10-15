@@ -1,0 +1,6 @@
+RS Camera AV includes and modifies Intel RealSense librealsense version 2.58.1.
+Upstream source: https://github.com/realsenseai/librealsense/tree/v2.58.1
+Copyright (c) Intel Corporation. Licensed under Apache License 2.0.
+
+Third-party components retain their respective notices and licenses in the
+source tree. The bundled nlohmann/json 3.12.0 is licensed under MIT.

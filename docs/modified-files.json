@@ -1,0 +1,16 @@
+[
+  "CMake/external_json.cmake",
+  "wrappers/android/.gitignore",
+  "wrappers/android/build.gradle",
+  "wrappers/android/librealsense/build.gradle",
+  "wrappers/android/librealsense/src/main/java/com/intel/realsense/librealsense/Option.java",
+  "wrappers/android/tools/camera/build.gradle",
+  "wrappers/android/tools/camera/src/main/java/com/intel/realsense/camera/PreviewActivity.java",
+  "wrappers/android/tools/camera/src/main/java/com/intel/realsense/camera/RecordingActivity.java",
+  "wrappers/android/tools/camera/src/main/res/layout-land/activity_preview.xml",
+  "wrappers/android/tools/camera/src/main/res/layout-land/activity_recording.xml",
+  "wrappers/android/tools/camera/src/main/res/layout/activity_preview.xml",
+  "wrappers/android/tools/camera/src/main/res/layout/activity_recording.xml",
+  "wrappers/android/tools/camera/src/main/java/com/intel/realsense/camera/RgbPreviewSurfaceView.java",
+  "wrappers/android/gradle/wrapper/gradle-wrapper.properties"
+]

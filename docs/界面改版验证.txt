@@ -1,0 +1,42 @@
+RS Camera AV 0.0.9-capture 界面改版验证
+日期：2026-10-15
+
+最终构建任务：:tools:camera:assembleDebug、assembleDebugAndroidTest、testDebugUnitTest
+结果：BUILD SUCCESSFUL in 39s；85 actionable tasks: 85 executed。
+日志：outputs/build-java.log。
+
+本地自动测试：12 项通过，0 失败。
+CaptureUiTest：8 项，覆盖首页中文指引、竖屏/横屏拍摄控制、大字体小屏、录制/停止图标、计时和音量条、空录像库及按组显示。
+录像库流程还检查了指定 BAG 的回放 Intent 和 ZIP 导出到系统文件选择器的 Intent。
+RecordingItemTest：4 项，覆盖 MP4/BAG/同步文件归组、未完成视频不当作可播放文件、旧 BAG 与时间排序、损坏 JSON 不隐藏可导出文件。
+
+渲染环境：Robolectric 4.14.1，Android 13 / SDK 33 原生图形；使用 Android 15 的资源运行时支持 compileSdk35。
+原生图形运行时及测试 SDK 下载自 Maven Central，并验证官方 SHA256。
+实际检查了首页、竖屏拍摄、横屏拍摄、录制、横屏录制、大字体拍摄、空录像库、记录列表 8 张 PNG。
+图片位于 outputs/ui-preview/。预览区是测试中的黑色占位 View，没有真实摄像头图像；记录列表使用测试文件。
+渲染控件已挂载到 Android Activity，避免未附着视图不能正确绘制 Material 图标的问题。
+没有安装到用户手机，没有执行音视频硬件真机测试。
+
+安装包：outputs/RS-Camera-0.0.9-capture-arm64.apk
+大小：198471557 字节
+SHA256：5f250d6de55b78a16e1209f15e320eb47a429a03191965b71581dbe78505ca30
+包名：com.intel.realsense.camera.av
+名称：RS Camera AV
+versionCode：9；versionName：0.0.9-capture
+minSdk：24；target/compileSdk：35；ABI：arm64-v8a
+APK v2 签名校验通过。
+证书 SHA256：1503be7770bdbf526949db0b828141ff4c9d1069239067ef25d682e00e0af488
+与本机生成的 0.0.8 调试签名一致，可作为更新安装。
+
+最终构建副本的 Java、资源和测试与当前源码逐文件哈希一致。
+构建和安装 PowerShell 脚本语法检查通过。
+原生 librealsense2.so 与原 0.0.7 APK 的二进制 SHA256 完全一致，没有修改或重新编译 native SDK。
+原 0.0.8 APK SHA256 仍为 714affebcc1cd92d0c2401b335d535af0b02d50d1e1c23bc6891ef1991b3b23c。
+
+环境：Temurin JDK17.0.20.1+1、Gradle8.11.1、AGP8.9.1、Android API/Build Tools35。
+本轮使用 scripts/build-java.ps1，复用原 native 库；C++/JNI 改动仍需要完整原生构建。
+测试依赖首次网络下载有停滞，改为本地已校验的测试运行时后完成验证；脚本提供 -RobolectricSdkDir 以重现该方式。
+SDK Platform-Tools 未安装，构建出现对应可选工具警告，本次没有调用 ADB 安装。
+Windows aapt 在读取中文绝对 APK 路径时有编码问题；切换到 outputs 目录使用相对 APK 文件名后，包信息读取校验通过。
+
+仍待 iQOO Z7x + D435i 真机验证：USB 授权与拔插、实际帧率与供电、手机麦克风音量变化、音视频及深度保存、横竖屏预览、后台停止、视频/深度回放、分享及 SAF 导出、长时间录制性能。

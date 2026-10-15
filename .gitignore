@@ -1,0 +1,15 @@
+.work/
+outputs/
+**/local.properties
+**/.gradle/
+**/.cxx/
+**/build/
+**/build-*/
+*.jks
+*.keystore
+adbkey*
+*.apk
+
+/README.txt
+/SHA256SUMS*.txt
+

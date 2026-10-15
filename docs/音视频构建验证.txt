@@ -1,0 +1,52 @@
+音视频开发版构建验证
+日期：2026-10-14
+
+需求：D435i + iQOO Z7x / Android 13，手机内置麦克风，保留深度 BAG 并生成有声 MP4。
+
+最终构建：scripts/build-java.ps1
+JDK：Temurin 17.0.20.1+1
+Gradle：8.11.1
+AGP：8.9.1
+Android API / Build Tools：35 / 35.0.0
+最终任务：:tools:camera:assembleDebug、:tools:camera:assembleDebugAndroidTest
+结果：BUILD SUCCESSFUL in 28s；79 actionable tasks: 79 executed。
+完整日志：outputs/build-java.log。
+
+应用 APK：outputs/RS-Camera-0.0.8-rgb-audio-arm64.apk
+长度：198444795 字节
+SHA256：714affebcc1cd92d0c2401b335d535af0b02d50d1e1c23bc6891ef1991b3b23c
+包名：com.intel.realsense.camera.av
+应用名称：RS Camera AV
+versionCode：8
+versionName：0.0.8-rgb-audio
+minSdk：24；target/compileSdk：35
+ABI：arm64-v8a
+录音权限：android.permission.RECORD_AUDIO 已写入最终 APK。
+签名：apksigner verify --verbose --print-certs 通过，APK v2 签名通过。
+调试证书 SHA256：1503be7770bdbf526949db0b828141ff4c9d1069239067ef25d682e00e0af488
+
+真机测试 APK：outputs/RS-Camera-AV-androidTest.apk，620780 字节。
+真机测试仅已编译，没有执行；不应把测试包生成视为测试通过。
+
+构建方式及限制
+
+本次只重新编译 Java 和 Android 资源。没有安装 NDK/CMake 或重新编译 C++。
+原生 librealsense2.so 从包内原 0.0.7 APK 提取；比较新旧 APK 中该库的 SHA256，二进制完全一致。
+本次改动没有修改 JNI 接口或 C++，沿用相同 SDK 2.58.1 的 native 库。
+最终构建复制的 Java、资源、真机测试与当前源码逐文件哈希一致。
+编码核心 AvRecorder.java 和 EncoderSurface.java 另用 API35 android.jar + javac 单独编译通过。
+相机模块全部 XML 解析通过；三个 PowerShell 构建/安装脚本语法解析通过。
+
+构建警告
+
+仅 Java 的临时工程设置 android.overridePathCheck=true 以允许当前中文路径；完整 C++ 构建仍建议移到短英文路径。
+SDK Platform-Tools 未安装，Gradle 提示缺少该可选工具和许可证；应用/测试 APK 打包成功，本次没有用 ADB 安装到手机。
+部分旧源码使用已弃用 API，manifest 中旧 package 属性由 namespace 接管。
+未配置 native 符号裁剪工具，因此原始 native 库原样打包，APK 较大。
+
+没有验证的项目
+
+没有连接用户的 iQOO Z7x 和 D435i。
+USB 带宽及供电、实际 RGB/深度采集、麦克风声音、编码器运行、MP4 可播放性、画面方向、音画同步与长时漂移均待真机检查。
+真机安装/导出方法及验证项目见 docs/音视频开发说明.md。
+本记录不延用旧版在三星手机上的验证结论。

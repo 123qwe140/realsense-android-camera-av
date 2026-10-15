@@ -1,0 +1,17 @@
+随包新增的第三方源码
+
+名称：nlohmann/json
+版本：3.12.0
+来源：https://github.com/nlohmann/json/tree/v3.12.0
+许可：MIT；许可文本保留在 source/librealsense-2.58.1/third-party/json/LICENSE.MIT。
+附带内容：上游 include、single_include、cmake、LICENSES、CMakeLists.txt、README.md、nlohmann_json.natvis。
+未包含上游 Git 元数据、测试数据、构建产物或缓存。
+集成方式：CMake/external_json.cmake 在本地目录存在时直接 add_subdirectory；否则保持上游下载逻辑。
+Android 项目已固定 CMake 3.22.1，支持该集成代码使用的 CMake 变量。
+
+Gradle Wrapper
+
+版本：8.11.1；通过官方 Gradle 工具生成，包含 Windows 与 Unix 启动脚本和 Wrapper JAR。
+Gradle 分发包来源：https://downloads.gradle.org/distributions/gradle-8.11.1-bin.zip
+分发包 SHA-256：f397b287023acdba1e9f6fc5ea72d22dd63669d59ed4a289a29b1a76eee151c6
+Wrapper properties 配置了该校验值；本包没有附带 Gradle、JDK 或 Android SDK 完整安装目录。

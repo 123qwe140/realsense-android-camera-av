@@ -1,0 +1,51 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.intel.realsense.camera'
+    compileSdk defaultCompileSdkVersion
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    defaultConfig {
+        applicationId "com.intel.realsense.camera.av"
+        minSdk defaultMinSdkVersion
+        targetSdk defaultTargetSdkVersion
+        versionCode 9
+        versionName "0.0.9-capture"
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    testOptions {
+        unitTests.includeAndroidResources = true
+        unitTests.all {
+            systemProperty 'ui.screenshots.dir', project.layout.buildDirectory.dir('ui-screenshots').get().asFile.absolutePath
+            systemProperty 'robolectric.dependency.repo.url', 'https://repo.maven.apache.org/maven2'
+            if (System.getenv('RS_ROBOLECTRIC_SDK_DIR')) {
+                systemProperty 'robolectric.offline', 'true'
+                systemProperty 'robolectric.dependency.dir', System.getenv('RS_ROBOLECTRIC_SDK_DIR')
+            }
+            maxHeapSize = '2g'
+        }
+    }
+
+}
+
+dependencies {
+    implementation project(':librealsense')
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$appcompatVersion"
+    implementation "androidx.constraintlayout:constraintlayout:$constraintlayoutVersion"
+    implementation "com.google.android.material:material:$materialVersion"
+    testImplementation "junit:junit:$junitVersion"
+    testImplementation 'org.robolectric:robolectric:4.14.1'
+    androidTestImplementation "androidx.test.ext:junit:$androidextjunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$espressoCoreVersion"
+}
