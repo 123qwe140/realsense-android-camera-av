@@ -9,6 +9,7 @@
     <item name="homeVersion" type="id" />
     <item name="cameraStatus" type="id" />
     <item name="cameraDetail" type="id" />
+    <item name="stableCaptureMode" type="id" />
     <item name="depthStatus" type="id" />
     <item name="micStatus" type="id" />
     <item name="previewHint" type="id" />

@@ -21,6 +21,7 @@ import android.widget.TextView;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.appcompat.widget.SwitchCompat;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
@@ -460,6 +461,14 @@ final class CameraUi {
         tip.setBackground(shape(c, SURFACE, 18, true));
         page.addView(tip);
         gap(page, 18);
+        SwitchCompat stableMode = new SwitchCompat(c);
+        stableMode.setId(R.id.stableCaptureMode);
+        stableMode.setText("手机稳定模式（RGB/深度 ≤640×480、≤15 fps；关闭 IMU/红外）");
+        stableMode.setTextColor(TEXT);
+        stableMode.setTextSize(14);
+        stableMode.setPadding(dp(c, 8), dp(c, 8), dp(c, 8), dp(c, 8));
+        page.addView(stableMode, new LinearLayout.LayoutParams(-1, -2));
+        gap(page, 12);
         for (int id : new int[]{R.id.configuration_ex_list_view, R.id.settings_ex_list_view, R.id.info_ex_list_view}) {
             ExpandedSettingsList list = new ExpandedSettingsList(c);
             list.setId(id);

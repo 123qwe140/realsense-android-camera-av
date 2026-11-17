@@ -13,8 +13,8 @@ android {
         applicationId "com.intel.realsense.camera.av"
         minSdk defaultMinSdkVersion
         targetSdk defaultTargetSdkVersion
-        versionCode 9
-        versionName "0.0.9-capture"
+        versionCode 13
+        versionName "0.0.13-stable"
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     buildTypes {

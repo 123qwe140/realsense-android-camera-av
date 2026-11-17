@@ -7,6 +7,10 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
@@ -27,9 +31,21 @@ import com.intel.realsense.librealsense.StreamType;
 import com.intel.realsense.librealsense.VideoFrame;
 import com.intel.realsense.librealsense.VideoStreamProfile;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class PreviewActivity extends AppCompatActivity {
-    private RgbPreviewSurfaceView preview;
-    private Streamer streamer;
+    private static final int MAX_PREVIEW_ATTEMPTS = 3;
+    private static final long PREVIEW_RETRY_DELAY_MS = 1200;
+    private static final long PREVIEW_STALE_AFTER_MS = 6000;
+    private final Handler previewHealthHandler = new Handler(Looper.getMainLooper());
+    private volatile RgbPreviewSurfaceView preview;
+    private volatile Streamer streamer;
+    private HandlerThread previewThread;
+    private volatile Handler previewHandler;
+    private volatile boolean resumed;
+    private volatile long previewGeneration;
+    private int previewStartAttempts;
+    private AtomicBoolean firstFrameSeen = new AtomicBoolean();
     private MaterialButton record;
     private boolean hasFrames;
     private boolean canRecord;
@@ -40,8 +56,28 @@ public class PreviewActivity extends AppCompatActivity {
     private TextView statisticsText;
     private BottomSheetDialog settingsSheet;
     private BottomSheetDialog statisticsSheet;
+    private volatile boolean statisticsVisible;
     private FwLogsThread fwLogs;
     private long nextStatsNs;
+    private volatile boolean previewMarkedStale;
+    private final Runnable previewHealthCheck = new Runnable() {
+        @Override public void run() {
+            if (!resumed) return;
+            Streamer current = streamer;
+            long lastFrame = current == null ? 0 : current.getLastFramesetAtMs();
+            long now = SystemClock.elapsedRealtime();
+            if (hasFrames && lastFrame > 0 && now - lastFrame > PREVIEW_STALE_AFTER_MS
+                    && !previewMarkedStale) {
+                previewMarkedStale = true;
+                problem = "相机图像已停止更新超过 6 秒";
+                canRecord = false;
+                detail = "USB 图像流中断，请返回首页后重新连接相机";
+                Log.e("RS preview", "frame watchdog: no frameset for " + (now - lastFrame) + " ms");
+                updateReadiness();
+            }
+            previewHealthHandler.postDelayed(this, 1000);
+        }
+    };
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -93,63 +129,152 @@ public class PreviewActivity extends AppCompatActivity {
 
     @Override protected void onResume() {
         super.onResume();
+        resumed = true;
+        long generation = ++previewGeneration;
         hasFrames = false;
         canRecord = false;
         problem = null;
         detail = "准备相机画面…";
         depthText = "深度检测中";
         statistics = new StreamingStats();
+        firstFrameSeen = new AtomicBoolean();
+        previewStartAttempts = 0;
+        previewMarkedStale = false;
         updateReadiness();
-        streamer = new Streamer(this, true, new Streamer.Listener() {
+        previewHealthHandler.removeCallbacks(previewHealthCheck);
+        previewHealthHandler.postDelayed(previewHealthCheck, PREVIEW_STALE_AFTER_MS);
+        previewThread = new HandlerThread("RS-preview");
+        previewThread.start();
+        previewHandler = new Handler(previewThread.getLooper());
+        previewHandler.post(() -> startPreview(generation));
+    }
+
+    private void startPreview(long generation) {
+        if (!isCurrentPreview(generation)) return;
+        ++previewStartAttempts;
+        Streamer current = new Streamer(this, true, new Streamer.Listener() {
             @Override public void config(Config config) { }
             @Override public void onFrameset(FrameSet frames) {
-                if (!hasFrames) readFrameInfo(frames);
-                preview.upload(frames);
-                if (statisticsSheet != null && statisticsSheet.isShowing()) {
+                RgbPreviewSurfaceView surface = preview;
+                if (surface == null || !isCurrentPreview(generation)) return;
+                if (previewMarkedStale) {
+                    previewMarkedStale = false;
+                    Log.i("RS preview", "frame watchdog: frames resumed");
+                    readFrameInfo(frames, generation);
+                }
+                if (firstFrameSeen.compareAndSet(false, true)) readFrameInfo(frames, generation);
+                surface.upload(frames);
+                if (statisticsVisible) {
                     statistics.onFrameset(frames);
                     long now = System.nanoTime();
                     if (now >= nextStatsNs) {
-                        statisticsText.setText(statistics.prettyPrint());
+                        String snapshot = statistics.prettyPrint();
+                        runOnUiThread(() -> {
+                            if (isCurrentPreview(generation) && statisticsText != null)
+                                statisticsText.setText(snapshot);
+                        });
                         nextStatsNs = now + 500_000_000;
                     }
                 }
             }
-            @Override public void onError(Exception error) { showProblem("相机连接已中断"); }
+            @Override public void onError(Exception error) {
+                retryPreview(generation, error);
+            }
         });
+        streamer = current;
+        if (!isCurrentPreview(generation)) return;
         try {
-            preview.clear();
-            streamer.start();
-            startFwLogging();
+            RgbPreviewSurfaceView surface = preview;
+            if (surface != null) surface.clear();
+            current.start();
+            if (!isCurrentPreview(generation)) current.stop();
+            else runOnUiThread(() -> {
+                if (isCurrentPreview(generation)) startFwLogging();
+            });
         } catch (Exception error) {
             Log.e("RS preview", "Cannot start preview", error);
-            if (streamer != null) streamer.stop();
-            showProblem("暂时无法打开相机画面");
+            current.stop();
+            retryPreview(generation, error);
         }
     }
 
-    private void readFrameInfo(FrameSet frames) {
-        hasFrames = true;
+    private void retryPreview(long generation, Exception error) {
+        if (!isCurrentPreview(generation)) return;
+        if (previewStartAttempts >= MAX_PREVIEW_ATTEMPTS) {
+            showProblem(generation, describeCameraError("多次尝试后仍无法收到相机画面", error));
+            return;
+        }
+        int nextAttempt = previewStartAttempts + 1;
+        runOnUiThread(() -> {
+            if (!isCurrentPreview(generation)) return;
+            hasFrames = false;
+            canRecord = false;
+            problem = null;
+            detail = "相机画面未就绪，正在自动重连（" + nextAttempt + "/" + MAX_PREVIEW_ATTEMPTS + "）…";
+            firstFrameSeen.set(false);
+            RgbPreviewSurfaceView surface = preview;
+            if (surface != null) surface.clear();
+            updateReadiness();
+        });
+        Handler handler = previewHandler;
+        if (handler != null) handler.postDelayed(() -> startPreview(generation), PREVIEW_RETRY_DELAY_MS);
+    }
+
+    private boolean isCurrentPreview(long generation) {
+        return resumed && generation == previewGeneration;
+    }
+
+    private String describeCameraError(String prefix, Exception error) {
+        String detail = error == null ? null : error.getMessage();
+        if (detail == null || detail.trim().isEmpty()) return prefix;
+        detail = detail.trim().replace('\n', ' ');
+        if (detail.length() > 160) detail = detail.substring(0, 160) + "…";
+        return prefix + "：" + detail;
+    }
+
+    private void readFrameInfo(FrameSet frames, long generation) {
+        String nextDepth = "深度未开启";
+        String nextDetail = "未检测到彩色画面";
+        boolean nextCanRecord = false;
+        String nextProblem = null;
         try (Frame color = frames.first(StreamType.COLOR); Frame depth = frames.first(StreamType.DEPTH)) {
-            depthText = depth == null ? "深度未开启" : "深度已就绪";
+            nextDepth = depth == null ? "深度未开启" : "深度已就绪";
             if (color == null) {
-                problem = "未开启彩色画面，请在录制设置中开启彩色和深度";
+                nextProblem = "未开启彩色画面，请在录制设置中开启彩色和深度";
             } else {
                 VideoFrame video = color.as(Extension.VIDEO_FRAME);
                 try (VideoStreamProfile profile = video.getProfile()) {
-                    detail = video.getWidth() + " × " + video.getHeight() + "  ·  " + profile.getFrameRate() + " fps";
+                    nextDetail = video.getWidth() + " × " + video.getHeight() + "  ·  " + profile.getFrameRate() + " fps";
                     StreamFormat format = profile.getFormat();
-                    canRecord = depth != null && (format == StreamFormat.RGB8 || format == StreamFormat.RGBA8 || format == StreamFormat.YUYV);
-                    if (!canRecord) detail += depth == null ? "  ·  请开启深度" : "  ·  请使用 RGB8 / YUYV";
+                    nextCanRecord = depth != null && (format == StreamFormat.RGB8 || format == StreamFormat.RGBA8 || format == StreamFormat.YUYV);
+                    if (!nextCanRecord) nextDetail += depth == null ? "  ·  请开启深度" : "  ·  请使用 RGB8 / YUYV";
                 }
             }
+        } catch (Exception error) {
+            nextProblem = describeCameraError("读取相机画面失败", error);
         }
-        updateReadiness();
+        final String frameDetail = nextDetail;
+        final String frameDepth = nextDepth;
+        final boolean frameCanRecord = nextCanRecord;
+        final String frameProblem = nextProblem;
+        runOnUiThread(() -> {
+            if (!isCurrentPreview(generation)) return;
+            hasFrames = true;
+            depthText = frameDepth;
+            detail = frameDetail;
+            canRecord = frameCanRecord;
+            problem = frameProblem;
+            updateReadiness();
+        });
     }
 
-    private void showProblem(String message) {
-        problem = message;
-        canRecord = false;
-        updateReadiness();
+    private void showProblem(long generation, String message) {
+        runOnUiThread(() -> {
+            if (!isCurrentPreview(generation)) return;
+            problem = message;
+            canRecord = false;
+            updateReadiness();
+        });
     }
 
     private void showSettings() {
@@ -177,7 +302,9 @@ public class PreviewActivity extends AppCompatActivity {
             statisticsText = CameraUi.text(this, "正在收集采集统计…", 12, CameraUi.MUTED);
             info.addView(statisticsText);
             statisticsSheet = CameraUi.sheet(this, "采集统计", "供排查分辨率、帧率和丢帧使用", info);
+            statisticsSheet.setOnDismissListener(dialog -> statisticsVisible = false);
             statisticsSheet.show();
+            statisticsVisible = true;
         });
         settingsSheet.show();
     }
@@ -192,10 +319,28 @@ public class PreviewActivity extends AppCompatActivity {
     }
 
     @Override protected void onPause() {
-        if (streamer != null) streamer.stop();
+        resumed = false;
+        ++previewGeneration;
+        Handler handler = previewHandler;
+        previewHandler = null;
+        if (handler != null) handler.removeCallbacksAndMessages(null);
+        previewHealthHandler.removeCallbacks(previewHealthCheck);
+        Streamer current = streamer;
+        streamer = null;
+        // Pipeline.start() and its first-frame wait run on the preview thread.
+        // Stopping synchronously here would block the UI while start() holds its lock.
+        if (current != null) {
+            if (handler != null) handler.post(current::stop);
+            else current.stop();
+        }
+        if (previewThread != null) {
+            previewThread.quitSafely();
+            previewThread = null;
+        }
         if (preview != null) preview.clear();
         if (settingsSheet != null) settingsSheet.dismiss();
         if (statisticsSheet != null) statisticsSheet.dismiss();
+        statisticsVisible = false;
         if (fwLogs != null) { fwLogs.stopLogging(); fwLogs.interrupt(); fwLogs = null; }
         super.onPause();
     }

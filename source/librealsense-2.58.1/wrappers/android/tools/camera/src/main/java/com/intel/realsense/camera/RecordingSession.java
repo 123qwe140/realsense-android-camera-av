@@ -109,8 +109,10 @@ final class RecordingSession {
                 @Override public void onFrameset(FrameSet frames) {
                     if (stopRequested) return;
                     try {
-                        recordFrames(frames);
+                        // Keep the live view responsive even when file/codec work for this
+                        // frame takes longer than expected. The surface retains its own clone.
                         listener.onFrames(frames);
+                        recordFrames(frames);
                     } catch (Exception error) { fail(error); }
                 }
                 @Override public void onError(Exception error) { fail(error); }

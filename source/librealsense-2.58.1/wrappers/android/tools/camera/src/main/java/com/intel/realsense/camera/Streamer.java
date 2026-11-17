@@ -3,6 +3,7 @@ package com.intel.realsense.camera;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
+import android.os.SystemClock;
 import android.util.Log;
 
 import com.intel.realsense.librealsense.CameraInfo;
@@ -19,6 +20,7 @@ import com.intel.realsense.librealsense.ProductLine;
 import com.intel.realsense.librealsense.RsContext;
 import com.intel.realsense.librealsense.Sensor;
 import com.intel.realsense.camera.RecordingActivity;
+import com.intel.realsense.librealsense.StreamFormat;
 import com.intel.realsense.librealsense.StreamProfile;
 import com.intel.realsense.librealsense.VideoStreamProfile;
 
@@ -27,7 +29,10 @@ import java.util.Map;
 
 public class Streamer {
     private static final String TAG = "librs camera streamer";
-    private static final int DEFAULT_TIMEOUT = 3000;
+    static final String STABLE_CAPTURE_MODE = "stable_capture_mode";
+    // D435i can take longer than three seconds to produce its first frames after
+    // USB negotiation or a warm reconnect, especially on Android phones.
+    private static final int DEFAULT_TIMEOUT = 10000;
     private static final int L500_TIMEOUT = 15000;
 
     interface Listener{
@@ -45,6 +50,7 @@ public class Streamer {
 
     private Pipeline mPipeline;
     private String mRecordFilePath;
+    private volatile long mLastFramesetAtMs;
 
     public Streamer(Context context, boolean loadConfig, Listener listener){
         mContext = context;
@@ -58,6 +64,7 @@ public class Streamer {
             if (!mIsStreaming) return;
             try {
                 try(FrameSet frames = mPipeline.waitForFrames()) {
+                    mLastFramesetAtMs = SystemClock.elapsedRealtime();
                     mListener.onFrameset(frames);
                 }
                 if (mIsStreaming) mHandler.post(mStreaming);
@@ -106,13 +113,45 @@ public class Streamer {
                     profilesMap = SettingsActivity.createProfilesMap(device);
 
                     SharedPreferences sharedPref = mContext.getSharedPreferences(mContext.getString(R.string.app_settings), Context.MODE_PRIVATE);
+                    boolean stableMode = sharedPref.getBoolean(STABLE_CAPTURE_MODE, true);
+                    SharedPreferences.Editor stableEdits = sharedPref.edit();
+                    boolean changedStableSettings = false;
 
                     for(Map.Entry e : profilesMap.entrySet()){
                         List<StreamProfile> profiles = (List<StreamProfile>) e.getValue();
                         StreamProfile p = profiles.get(0);
-                        if(!sharedPref.getBoolean(SettingsActivity.getEnabledDeviceConfigString(pid, p.getType(), p.getIndex()), false))
+                        String enabledKey = SettingsActivity.getEnabledDeviceConfigString(pid, p.getType(), p.getIndex());
+                        String indexKey = SettingsActivity.getIndexdDeviceConfigString(pid, p.getType(), p.getIndex());
+                        boolean wasConfigured = sharedPref.contains(enabledKey);
+                        boolean enabled = sharedPref.getBoolean(enabledKey, false);
+                        int index = sharedPref.getInt(indexKey, 0);
+                        if (stableMode) {
+                            boolean required = CaptureStreamPolicy.includesStream(p.getType(), true);
+                            if (!required) {
+                                if (enabled) {
+                                    stableEdits.putBoolean(enabledKey, false);
+                                    changedStableSettings = true;
+                                }
+                                continue;
+                            }
+                            if (!enabled || !wasConfigured) {
+                                enabled = true;
+                                stableEdits.putBoolean(enabledKey, true);
+                                changedStableSettings = true;
+                            }
+                            int stableIndex = findStableProfileIndex(profiles, p.getType(), index);
+                            if (stableIndex >= 0 && stableIndex != index) {
+                                index = stableIndex;
+                                stableEdits.putInt(indexKey, index);
+                                changedStableSettings = true;
+                                Log.i(TAG, "stable capture selected " + p.getType() + " profile index " + index);
+                            } else if (stableIndex < 0) {
+                                Log.w(TAG, "no <=640x480@15 stable profile for " + p.getType()
+                                        + "; using configured profile index " + index);
+                            }
+                        }
+                        if(!enabled)
                             continue;
-                        int index = sharedPref.getInt(SettingsActivity.getIndexdDeviceConfigString(pid, p.getType(), p.getIndex()), 0);
                         if(index == -1 || index >= profiles.size())
                             throw new IllegalArgumentException("Failed to resolve config");
                         StreamProfile sp = profiles.get(index);
@@ -127,12 +166,49 @@ public class Streamer {
                             numStreams++;
                         }
                     }
+                    if (changedStableSettings) stableEdits.apply();
                 }
             }
         }
 
         return numStreams;
     }
+
+    private int findStableProfileIndex(List<StreamProfile> profiles,
+                                       com.intel.realsense.librealsense.StreamType type,
+                                       int preferredIndex) {
+        if (isStableVideoProfile(profiles.get(Math.max(0, Math.min(preferredIndex, profiles.size() - 1))), type))
+            return Math.max(0, Math.min(preferredIndex, profiles.size() - 1));
+
+        int bestIndex = -1;
+        long bestScore = Long.MIN_VALUE;
+        for (int i = 0; i < profiles.size(); i++) {
+            StreamProfile profile = profiles.get(i);
+            if (!isStableVideoProfile(profile, type)) continue;
+            try (VideoStreamProfile video = profile.as(Extension.VIDEO_PROFILE)) {
+                int formatScore = type == com.intel.realsense.librealsense.StreamType.COLOR
+                        ? (video.getFormat() == StreamFormat.YUYV ? 2 : 1) : 0;
+                long score = (long) video.getFrameRate() * 1_000_000L
+                        + (long) video.getWidth() * video.getHeight() * 10L + formatScore;
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestIndex = i;
+                }
+            }
+        }
+        return bestIndex;
+    }
+
+    private boolean isStableVideoProfile(StreamProfile profile,
+                                         com.intel.realsense.librealsense.StreamType type) {
+        if (!profile.is(Extension.VIDEO_PROFILE)) return false;
+        try (VideoStreamProfile video = profile.as(Extension.VIDEO_PROFILE)) {
+            return CaptureStreamPolicy.isStableProfile(type, video.getFormat(),
+                    video.getWidth(), video.getHeight(), video.getFrameRate());
+        }
+    }
+
+    long getLastFramesetAtMs() { return mLastFramesetAtMs; }
 
     void configAndStart() throws Exception {
         try(Config config = new Config()){

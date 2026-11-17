@@ -14,6 +14,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
 
 import android.os.Environment;
 import android.util.Log;
@@ -76,6 +77,11 @@ public class SettingsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         CameraUi.install(this, CameraUi.settings(this));
         findViewById(R.id.uiBack).setOnClickListener(view -> finish());
+        SwitchCompat stableMode = findViewById(R.id.stableCaptureMode);
+        SharedPreferences preferences = getSharedPreferences(getString(R.string.app_settings), Context.MODE_PRIVATE);
+        stableMode.setChecked(preferences.getBoolean(Streamer.STABLE_CAPTURE_MODE, true));
+        stableMode.setOnCheckedChangeListener((button, enabled) ->
+                preferences.edit().putBoolean(Streamer.STABLE_CAPTURE_MODE, enabled).apply());
         mContext = this;
 
         // Advanced features are enabled if xml files exists in the device.

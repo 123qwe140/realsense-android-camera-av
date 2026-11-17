@@ -1,9 +1,9 @@
 {
   "title": "RealSense Android Capture UI and RGB + phone audio",
-  "date": "2026-10-15",
+  "date": "2026-10-16",
   "sdk_version": "2.58.1",
-  "app_version": "0.0.9-capture",
-  "version_code": 9,
+  "app_version": "0.0.13-stable",
+  "version_code": 13,
   "application_id": "com.intel.realsense.camera.av",
   "abis": [
     "arm64-v8a"
@@ -15,13 +15,18 @@
   },
   "handoff_build_verified": true,
   "iqoo_hardware_tested": false,
-  "apk_sha256": "5f250d6de55b78a16e1209f15e320eb47a429a03191965b71581dbe78505ca30",
-  "development_apk": "outputs/RS-Camera-0.0.9-capture-arm64.apk",
+  "apk_sha256": "d901148ae9a422a5fa21fecfa0f368255c9f07ccd00c8733a1f220bfb0f0280c",
+  "development_apk": "outputs/RS-Camera-0.0.13-stable-arm64.apk",
   "original_apk": "apk/RS-Camera-0.0.7-rgb-arm64.apk",
   "native_library_rebuilt": false,
-  "native_library_origin": "Bundled 0.0.7 APK; native binary verified identical",
+  "native_library_origin": "Bundled 0.0.12 APK; native binary reused without changes",
   "instrumentation_tests_executed": false,
   "target_hardware": "RealSense D435i; iQOO Z7x; Android 13; phone microphone",
-  "local_ui_and_file_tests_passed": 12,
+  "local_ui_and_file_tests_passed": 14,
+  "preview_first_frame_timeout_ms": 10000,
+  "preview_auto_reconnect_attempts": 3,
+  "stable_capture_default": true,
+  "stable_capture_profile": "RGB + depth, up to 640x480 at 15 fps; IMU and infrared disabled",
+  "runtime_stale_frame_warning_ms": 6000,
   "ui_preview_directory": "outputs/ui-preview"
 }

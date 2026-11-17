@@ -72,6 +72,12 @@ $version = [regex]::Match((Get-Content -LiteralPath $appBuildGradle -Raw), 'vers
 if (-not $version) { throw 'Unable to read versionName from tools/camera/build.gradle.' }
 $nativeApk = Join-Path $outputRoot "RS-Camera-$version-arm64.apk"
 if (-not (Test-Path -LiteralPath $nativeApk)) {
+    $nativeApk = Get-ChildItem -LiteralPath $outputRoot -Filter 'RS-Camera-*-arm64.apk' |
+        Where-Object { $_.Name -ne "RS-Camera-$version-arm64.apk" } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1 -ExpandProperty FullName
+}
+if (-not $nativeApk -or -not (Test-Path -LiteralPath $nativeApk)) {
     $nativeApk = Join-Path $packageRoot 'apk/RS-Camera-0.0.7-rgb-arm64.apk'
 }
 if (-not (Test-Path -LiteralPath $nativeApk)) {
